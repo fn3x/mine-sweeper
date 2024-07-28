@@ -16,7 +16,7 @@ pub const State = struct {
     placedBombs: bool,
 
     pub fn init(allocator: std.mem.Allocator, board_size: u8) InitErrors!State {
-        if (board_size == 0) {
+        if (board_size < 3) {
             return InitErrors.TooSmallBoard;
         }
 
