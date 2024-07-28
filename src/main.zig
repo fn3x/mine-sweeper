@@ -8,6 +8,6 @@ pub fn main() !void {
 
     var state = try State.init(allocator, @as(u8, 10));
     defer state.deinit(allocator);
-    try state.placeBombs(@as(u8, 5));
+    try state.placeMines(@as(u8, 5));
     state.print();
 }
