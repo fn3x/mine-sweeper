@@ -1,7 +1,7 @@
 const std = @import("std");
 const expect = @import("std").testing.expect;
 
-const State = @import("logic.zig").State;
+const State = @import("state.zig").State;
 
 test "should create state for size=10" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
