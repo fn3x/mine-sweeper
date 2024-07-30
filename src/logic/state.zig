@@ -2,27 +2,44 @@ const std = @import("std");
 const assert = std.debug.assert;
 const expect = std.testing.expect;
 
-const InitErrors = error{ OutOfMemory, TooSmallBoard };
-const GameErrors = error{TooManyBombs};
+const InitErrors = error{ OutOfMemory, TooSmallBoard, TooBigBoard, TooManyMines, TooSmallMaxMines };
+const GameErrors = error{ MaxMinesReached, NoMines };
 
-const Visit = enum { Revealed, Exploded };
+pub const Visit = enum { Revealed, Exploded };
 
 const Field = struct {
-    surrounded_with: usize,
-    is_revealed: bool,
-    is_mine: bool,
-    has_flag: bool,
+    surrounded_with: usize = 0,
+    is_revealed: bool = false,
+    is_mine: bool = false,
+    has_flag: bool = false,
 };
 
 pub const State = struct {
     fields: []Field,
+    max_mines: usize = 0,
+    placed_mines: usize = 0,
+    turn: usize = 0,
 
-    pub fn init(allocator: std.mem.Allocator, board_size: u8) InitErrors!State {
+    pub fn init(allocator: std.mem.Allocator, board_size: usize, max_mines: usize) InitErrors!State {
         if (board_size < 3) {
             return InitErrors.TooSmallBoard;
         }
 
-        const fields = try allocator.alloc(Field, board_size * board_size);
+        if (board_size > 256) {
+            return InitErrors.TooBigBoard;
+        }
+
+        if (max_mines < 0) {
+            return InitErrors.TooSmallMaxMines;
+        }
+
+        const fields_size: usize = board_size * board_size;
+
+        if (@as(f64, max_mines / fields_size) > 0.25) {
+            return InitErrors.TooManyMines;
+        }
+
+        const fields = try allocator.alloc(Field, fields_size);
         for (0..fields.len) |i| {
             fields[i].is_revealed = false;
             fields[i].is_mine = false;
@@ -30,7 +47,16 @@ pub const State = struct {
             fields[i].surrounded_with = 0;
         }
 
-        return .{ .fields = fields };
+        return .{
+            .fields = fields,
+            .max_mines = max_mines,
+            .placed_mines = 0,
+            .turn = 0,
+        };
+    }
+
+    pub fn deinit(self: *State, allocator: std.mem.Allocator) void {
+        allocator.free(self.fields);
     }
 
     pub fn reset(self: *State) void {
@@ -39,10 +65,8 @@ pub const State = struct {
             self.fields[i].is_mine = false;
             self.fields[i].surrounded_with = 0;
         }
-    }
 
-    pub fn deinit(self: *State, allocator: std.mem.Allocator) void {
-        allocator.free(self.fields);
+        self.placed_mines = 0;
     }
 
     pub fn print(self: *State) void {
@@ -51,21 +75,28 @@ pub const State = struct {
         }
     }
 
-    pub fn placeMines(self: *State, mines: usize) GameErrors!void {
-        if ((mines / self.fields.len) > 25) {
-            return GameErrors.TooManyBombs;
+    fn placeMines(self: *State, firstField: usize) GameErrors!void {
+        assert(firstField < self.fields.len);
+
+        if (self.max_mines == 0) {
+            return GameErrors.NoMines;
         }
 
-        var i: usize = 0;
-        var placedMines: u8 = 0;
-        while (i < self.fields.len and placedMines < mines) : (i += 5) {
-            placedMines += 1;
-            try self.placeMine(i);
+        if (self.placed_mines == self.max_mines) {
+            return GameErrors.MaxMinesReached;
         }
+
+        // TODO: make random placement of mines
+        try self.placeMine(1);
     }
 
     pub fn placeMine(self: *State, x: usize) GameErrors!void {
-        assert(x <= self.fields.len);
+        assert(x < self.fields.len);
+
+        if (self.placed_mines >= self.max_mines) {
+            return GameErrors.MaxMinesReached;
+        }
+
         if (self.fields[x].is_mine) {
             return;
         }
@@ -73,6 +104,7 @@ pub const State = struct {
         const n: usize = std.math.sqrt(self.fields.len);
         self.fields[x].surrounded_with = 0;
         self.fields[x].is_mine = true;
+        self.placed_mines += 1;
 
         // check for upper left corner
         if (x >= n + 1 and !isLeft(x, n) and !isUp(x, n) and !self.fields[x - n - 1].is_mine) {
@@ -118,7 +150,13 @@ pub const State = struct {
     pub fn visitField(self: *State, x: usize) Visit {
         assert(x >= 0 and x < self.fields.len);
 
-        if (self.fields[x].is_mine) {
+        defer self.turn += 1;
+
+        if (self.turn == 0) {
+            try self.placeMines(x);
+        }
+
+        if (self.fields[x].is_mine and self.turn > 0) {
             return Visit.Exploded;
         }
 
@@ -134,7 +172,7 @@ pub const State = struct {
     pub fn revealAdjacent(self: *State, x: usize) void {
         assert(x >= 0 and x < self.fields.len);
 
-        std.log.info("visiting field={d}", .{x});
+        std.log.debug("visiting field={d}", .{x});
 
         if (self.fields[x].is_mine) {
             return;
@@ -191,6 +229,11 @@ pub const State = struct {
         if (x + n + 1 < self.fields.len and !isDown(x, n) and !isRight(x, n) and !self.fields[x + n + 1].is_mine) {
             self.revealAdjacent(x + n + 1);
         }
+    }
+
+    pub fn setFlag(self: *State, x: usize) void {
+        assert(x >= 0 and x < self.fields.len);
+        self.fields[x].has_flag = !self.fields[x].has_flag;
     }
 };
 

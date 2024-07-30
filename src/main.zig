@@ -10,8 +10,12 @@ pub fn main() !void {
     defer state.deinit(allocator);
     try state.placeMine(@as(u8, 1));
     state.print();
+
     const clicked = 8;
-    const visit = state.visitField(clicked);
+    var turn: usize = 1;
+    const visit = state.visitField(clicked, turn);
+    turn += 1;
+
     std.log.info("Visit at {d}: {}", .{ clicked, visit });
     state.print();
 }
