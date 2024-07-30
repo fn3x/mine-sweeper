@@ -6,15 +6,13 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var state = try State.init(allocator, @as(u8, 5));
+    var state = try State.init(allocator, 5, 3);
     defer state.deinit(allocator);
-    try state.placeMine(@as(u8, 1));
+    try state.placeMine(1);
     state.print();
 
     const clicked = 8;
-    var turn: usize = 1;
-    const visit = state.visitField(clicked, turn);
-    turn += 1;
+    const visit = state.visitField(clicked);
 
     std.log.info("Visit at {d}: {}", .{ clicked, visit });
     state.print();

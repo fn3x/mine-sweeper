@@ -93,36 +93,6 @@ test "should correctly tag fields surrounded with 1 mine at center and 1 mine in
     }
 }
 
-// test "should not increase surrounded for fields if mine is placed in the same field" {
-//     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-//     defer arena.deinit();
-//
-//     const allocator = arena.allocator();
-//     const field_size: usize = 3;
-//     const max_mines: usize = 1;
-//     const mine_pos: usize = 4;
-//
-//     var state = try State.init(allocator, field_size, max_mines);
-//     defer state.deinit(allocator);
-//
-//     // placing bombs in the same field
-//     try state.placeMine(mine_pos);
-//     try state.placeMine(mine_pos);
-//     try state.placeMine(mine_pos);
-//     try state.placeMine(mine_pos);
-//     try state.placeMine(mine_pos);
-//
-//     for (state.fields, 0..) |field, i| {
-//         if (i == mine_pos) {
-//             try expect(field.is_mine);
-//             continue;
-//         }
-//
-//         try expect(!field.is_mine);
-//         try expect(field.surrounded_with == 1);
-//     }
-// }
-
 test "should reset the board" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();

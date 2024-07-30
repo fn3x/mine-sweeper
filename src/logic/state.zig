@@ -33,13 +33,14 @@ pub const State = struct {
             return InitErrors.TooSmallMaxMines;
         }
 
-        const fields_size: usize = board_size * board_size;
+        const fields_size: f64 = @floatFromInt(board_size * board_size);
+        const max_mines_cast: f64 = @floatFromInt(max_mines);
 
-        if (@as(f64, max_mines / fields_size) > 0.25) {
+        if (max_mines_cast / fields_size > 0.25) {
             return InitErrors.TooManyMines;
         }
 
-        const fields = try allocator.alloc(Field, fields_size);
+        const fields = try allocator.alloc(Field, board_size * board_size);
         for (0..fields.len) |i| {
             fields[i].is_revealed = false;
             fields[i].is_mine = false;
@@ -152,8 +153,10 @@ pub const State = struct {
 
         defer self.turn += 1;
 
-        if (self.turn == 0) {
-            try self.placeMines(x);
+        if (self.turn == 0 and self.placed_mines == 0) {
+            self.placeMines(x) catch |e| {
+                std.log.err("Couldn't visit field {d} {any}", .{ x, e });
+            };
         }
 
         if (self.fields[x].is_mine and self.turn > 0) {
