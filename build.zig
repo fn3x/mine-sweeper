@@ -15,20 +15,6 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
-        .name = "mine-sweeper",
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // This declares intent for the library to be installed into the standard
-    // location when the user invokes the "install" step (the default step when
-    // running `zig build`).
-    b.installArtifact(lib);
-
     const exe = b.addExecutable(.{
         .name = "mine-sweeper",
         .root_source_file = b.path("src/main.zig"),
@@ -36,9 +22,13 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // This declares intent for the executable to be installed into the
-    // standard location when the user invokes the "install" step (the default
-    // step when running `zig build`).
+    const sdl_path = "../../sdl2/";
+    exe.addIncludePath(.{ .src_path = .{ .sub_path = sdl_path ++ "include", .owner = b } });
+    exe.addLibraryPath(.{ .src_path = .{ .sub_path = sdl_path ++ "lib/x64", .owner = b } });
+    b.installBinFile(sdl_path ++ "lib/x64/SDL2.dll", "SDL2.dll");
+    exe.linkSystemLibrary("sdl2");
+    exe.linkLibC();
+
     b.installArtifact(exe);
 
     // This *creates* a Run step in the build graph, to be executed when another

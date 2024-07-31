@@ -7,6 +7,8 @@ const GameErrors = error{ MaxMinesReached, NoMines };
 
 pub const Visit = enum { Revealed, Exploded };
 
+const rand = std.crypto.random;
+
 const Field = struct {
     surrounded_with: usize = 0,
     is_revealed: bool = false,
@@ -76,21 +78,6 @@ pub const State = struct {
         }
     }
 
-    fn placeMines(self: *State, firstField: usize) GameErrors!void {
-        assert(firstField < self.fields.len);
-
-        if (self.max_mines == 0) {
-            return GameErrors.NoMines;
-        }
-
-        if (self.placed_mines == self.max_mines) {
-            return GameErrors.MaxMinesReached;
-        }
-
-        // TODO: make random placement of mines
-        try self.placeMine(1);
-    }
-
     pub fn placeMine(self: *State, x: usize) GameErrors!void {
         assert(x < self.fields.len);
 
@@ -148,14 +135,26 @@ pub const State = struct {
         }
     }
 
-    pub fn visitField(self: *State, x: usize) Visit {
+    fn placeMines(self: *State, first: usize) GameErrors!void {
+        var mine_pos: usize = rand.uintLessThan(usize, self.fields.len);
+        while (self.placed_mines < self.max_mines) : (mine_pos = rand.uintLessThan(usize, self.fields.len)) {
+            if (mine_pos == first) {
+                continue;
+            }
+
+            try self.placeMine(mine_pos);
+        }
+    }
+
+    pub fn visitField(self: *State, x: usize) ?Visit {
         assert(x >= 0 and x < self.fields.len);
 
         defer self.turn += 1;
 
         if (self.turn == 0 and self.placed_mines == 0) {
-            self.placeMines(x) catch |e| {
-                std.log.err("Couldn't visit field {d} {any}", .{ x, e });
+            self.placeMines(x) catch |err| {
+                std.log.err("Could not place mines on first turn {any}", .{err});
+                return null;
             };
         }
 
