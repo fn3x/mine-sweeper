@@ -78,6 +78,7 @@ pub const State = struct {
         }
     }
 
+    // pub for tests
     pub fn placeMine(self: *State, x: usize) GameErrors!void {
         assert(x < self.fields.len);
 
@@ -171,7 +172,7 @@ pub const State = struct {
         return Visit.Revealed;
     }
 
-    pub fn revealAdjacent(self: *State, x: usize) void {
+    fn revealAdjacent(self: *State, x: usize) void {
         assert(x >= 0 and x < self.fields.len);
 
         std.log.debug("visiting field={d}", .{x});
