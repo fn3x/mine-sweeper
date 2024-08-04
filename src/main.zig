@@ -15,7 +15,10 @@ pub fn main() !void {
     var state = try State.init(allocator, size, mines);
     defer state.deinit(allocator);
 
-    const window = SDL2.SDL_CreateWindow("Simple", 0, 0, 400, 400, 0);
+    var window_width: usize = 800;
+    var window_height: usize = 400;
+
+    const window = SDL2.SDL_CreateWindow("Simple", 0, 0, @intCast(window_width), @intCast(window_height), 0);
     defer SDL2.SDL_DestroyWindow(window);
 
     const clicked = 4;
@@ -25,9 +28,8 @@ pub fn main() !void {
     const renderer = SDL2.SDL_CreateRenderer(window, 0, SDL2.SDL_RENDERER_PRESENTVSYNC);
     defer SDL2.SDL_DestroyRenderer(renderer);
 
-    // const surface = SDL2.SDL_GetWindowSurface(window);
-
     var sdl_event: SDL2.SDL_Event = undefined;
+
     var rects = try allocator.alloc(SDL2.SDL_Rect, size * size);
     defer allocator.free(rects);
 
@@ -35,24 +37,28 @@ pub fn main() !void {
     const shift_x = 25;
     const field_size = 20;
 
-    inline for (0..size * size) |i| {
+    var center_x: usize = window_width / 2;
+    var center_y: usize = window_height / 2;
+
+    for (0..rects.len) |i| {
         rects[i].h = field_size;
         rects[i].w = field_size;
 
         if (i == 0) {
-            rects[i].x = shift_x;
-            rects[i].y = shift_y;
+            rects[i].x = @intCast(center_x);
+            rects[i].y = @intCast(center_y);
         } else if (i % size == 0) {
             rects[i].x = shift_x;
-            rects[i].y = rects[i - 1].y + shift_y;
+            rects[i].y = rects[i - 1].y + @as(c_int, shift_y);
         } else {
-            rects[i].x = rects[i - 1].x + shift_x;
+            rects[i].x = rects[i - 1].x + @as(c_int, shift_x);
             rects[i].y = rects[i - 1].y;
         }
     }
 
-    for (0..size * size) |i| {
-        std.log.info("{any}\n", .{rects[i]});
+    for (rects) |*rect| {
+        rect.*.x += @intCast(window_width / 2 - shift_x);
+        rect.*.y += @intCast(window_height / 2 - shift_y);
     }
 
     main_loop: while (true) {
@@ -66,6 +72,14 @@ pub fn main() !void {
                 },
                 else => {},
             }
+            switch (sdl_event.window.event) {
+                SDL2.SDL_WINDOWEVENT_RESIZED => {
+                    SDL2.SDL_GetWindowSize(window, @as([*]c_int, @ptrCast(&window_width)), @as([*]c_int, @ptrCast(&window_height)));
+                    center_x = window_width / 2;
+                    center_y = window_height / 2;
+                },
+                else => {},
+            }
         }
 
         _ = SDL2.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -74,8 +88,10 @@ pub fn main() !void {
 
         _ = SDL2.SDL_SetRenderDrawColor(renderer, 0xff, 0, 0, 0xff);
 
-        for (rects) |rect| {
-            _ = SDL2.SDL_RenderFillRect(renderer, &rect);
+        for (rects) |*rect| {
+            rect.*.x += @intCast(window_width / 2 - shift_x);
+            rect.*.y += @intCast(window_height / 2 - shift_y);
+            _ = SDL2.SDL_RenderFillRect(renderer, rect);
         }
 
         SDL2.SDL_RenderPresent(renderer);
