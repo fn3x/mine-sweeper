@@ -22,10 +22,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const sdl_path = "../../sdl2/";
-    exe.addIncludePath(.{ .src_path = .{ .sub_path = sdl_path ++ "include", .owner = b } });
-    exe.addLibraryPath(.{ .src_path = .{ .sub_path = sdl_path ++ "lib/x64", .owner = b } });
-    b.installBinFile(sdl_path ++ "lib/x64/SDL2.dll", "SDL2.dll");
     exe.linkSystemLibrary("sdl2");
     exe.linkLibC();
 
