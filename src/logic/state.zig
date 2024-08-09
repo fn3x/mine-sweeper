@@ -175,8 +175,6 @@ pub const State = struct {
     fn revealAdjacent(self: *State, x: usize) void {
         assert(x >= 0 and x < self.fields.len);
 
-        std.log.debug("visiting field={d}", .{x});
-
         if (self.fields[x].is_mine) {
             return;
         }
