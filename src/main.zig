@@ -109,6 +109,14 @@ pub fn main() !void {
 }
 
 fn updateRects() void {
+    var r: u8 = 255;
+    var g: u8 = 255;
+    var b: u8 = 255;
+    var a: u8 = 255;
+
+    // save previous draw color
+    _ = c.SDL_GetRenderDrawColor(app.renderer, &r, &g, &b, &a);
+
     _ = c.SDL_SetRenderDrawColor(app.renderer, 0xff, 0, 0, 0xff);
 
     for (0..app.rects.len) |i| {
@@ -128,4 +136,7 @@ fn updateRects() void {
 
         _ = c.SDL_RenderFillRect(app.renderer, &app.rects.*[i]);
     }
+
+    // set draw color back
+    _ = c.SDL_SetRenderDrawColor(app.renderer, r, g, b, a);
 }
