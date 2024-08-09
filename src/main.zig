@@ -4,6 +4,30 @@ const c = @cImport({
     @cInclude("SDL.h");
 });
 
+const AppState = struct {
+    game: *State,
+    board_size: usize,
+    rects: *[]c.SDL_Rect,
+    renderer: *c.SDL_Renderer,
+    window: *c.SDL_Window,
+    center_x: c_int,
+    center_y: c_int,
+    field_shift: c_int,
+    field_size: c_int,
+};
+
+var app: AppState = .{
+    .field_size = 20,
+    .board_size = 3,
+    .rects = undefined,
+    .gameState = undefined,
+    .window = undefined,
+    .renderer = undefined,
+    .center_x = 0,
+    .center_y = 0,
+    .field_shift = 5,
+};
+
 pub fn main() !void {
     if (c.SDL_Init(c.SDL_INIT_VIDEO) != 0) {
         std.debug.panic("SDL error: {s}", .{c.SDL_GetError()});
@@ -13,11 +37,12 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const size = 3;
     const mines = 1;
 
-    var state = try State.init(allocator, size, mines);
+    var state = try State.init(allocator, app.board_size, mines);
     defer state.deinit(allocator);
+
+    app.game = &state;
 
     var window_width: usize = 800;
     var window_height: usize = 400;
@@ -27,44 +52,31 @@ pub fn main() !void {
         std.debug.panic("SDL error: {s}", .{c.SDL_GetError()});
     }
     defer c.SDL_DestroyWindow(window);
-
-    const clicked = 4;
-
-    _ = state.visitField(clicked);
+    app.window = window.?;
 
     const renderer = c.SDL_CreateRenderer(window, 0, c.SDL_RENDERER_PRESENTVSYNC);
     if (renderer == null) {
         std.debug.panic("SDL error: {s}", .{c.SDL_GetError()});
     }
     defer c.SDL_DestroyRenderer(renderer);
+    app.renderer = renderer.?;
 
     var sdl_event: c.SDL_Event = undefined;
 
-    var rects = try allocator.alloc(c.SDL_Rect, size * size);
+    var rects = try allocator.alloc(c.SDL_Rect, app.board_size * app.board_size);
     defer allocator.free(rects);
+    app.rects = &rects;
 
-    const shift_y = 5;
-    const shift_x = 5;
-    const field_size = 20;
+    app.field_size = @intCast(20);
+    app.field_shift = @intCast(5);
 
-    var center_x: usize = window_width / 2;
-    var center_y: usize = window_height / 2;
+    app.center_x = @intCast(window_width / 2);
+    app.center_y = @intCast(window_height / 2);
 
-    for (0..rects.len) |i| {
-        rects[i].h = field_size;
-        rects[i].w = field_size;
+    const clicked = 4;
+    _ = app.game.visitField(clicked);
 
-        if (i == 0) {
-            rects[i].x = @intCast(center_x - shift_x - field_size - @divFloor(field_size, 2));
-            rects[i].y = @intCast(center_y - shift_y - field_size - @divFloor(field_size, 2));
-        } else if (i % size == 0) {
-            rects[i].x = rects[i - size].x;
-            rects[i].y = rects[i - 1].y + @as(c_int, shift_y + field_size);
-        } else {
-            rects[i].x = rects[i - 1].x + @as(c_int, shift_x + field_size);
-            rects[i].y = rects[i - 1].y;
-        }
-    }
+    updateRects();
 
     main_loop: while (true) {
         while (c.SDL_PollEvent(&sdl_event) != 0) {
@@ -80,23 +92,40 @@ pub fn main() !void {
             switch (sdl_event.window.event) {
                 c.SDL_WINDOWEVENT_RESIZED => {
                     c.SDL_GetWindowSize(window, @as([*]c_int, @ptrCast(&window_width)), @as([*]c_int, @ptrCast(&window_height)));
-                    center_x = window_width / 2;
-                    center_y = window_height / 2;
+                    app.center_x = @intCast(window_width / 2);
+                    app.center_y = @intCast(window_height / 2);
                 },
                 else => {},
             }
         }
 
-        // _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        _ = c.SDL_SetRenderDrawColor(app.renderer, 255, 255, 255, 255);
+        _ = c.SDL_RenderClear(app.renderer);
 
-        // _ = c.SDL_RenderClear(renderer);
+        updateRects();
 
-        _ = c.SDL_SetRenderDrawColor(renderer, 0xff, 0, 0, 0xff);
+        c.SDL_RenderPresent(app.renderer);
+    }
+}
 
-        for (rects) |*rect| {
-            _ = c.SDL_RenderFillRect(renderer, rect);
+fn updateRects() void {
+    _ = c.SDL_SetRenderDrawColor(app.renderer, 0xff, 0, 0, 0xff);
+
+    for (0..app.rects.len) |i| {
+        app.rects.*[i].h = app.field_size;
+        app.rects.*[i].w = app.field_size;
+
+        if (i == 0) {
+            app.rects.*[i].x = app.center_x - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
+            app.rects.*[i].y = app.center_y - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
+        } else if (i % app.board_size == 0) {
+            app.rects.*[i].x = app.rects.*[i - app.board_size].x;
+            app.rects.*[i].y = app.rects.*[i - 1].y + app.field_shift + app.field_size;
+        } else {
+            app.rects.*[i].x = app.rects.*[i - 1].x + app.field_shift + app.field_size;
+            app.rects.*[i].y = app.rects.*[i - 1].y;
         }
 
-        c.SDL_RenderPresent(renderer);
+        _ = c.SDL_RenderFillRect(app.renderer, &app.rects.*[i]);
     }
 }
