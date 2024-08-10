@@ -1,11 +1,16 @@
 const std = @import("std");
-const State = @import("logic/state.zig").State;
+const Logic = @import("logic/state.zig").Logic;
 const c = @cImport({
     @cInclude("SDL.h");
 });
 
+const MouseInput = struct {
+    x: c_int,
+    y: c_int
+};
+
 const AppState = struct {
-    game: *State,
+    logic: *Logic,
     board_size: usize,
     rects: *[]c.SDL_Rect,
     renderer: *c.SDL_Renderer,
@@ -14,18 +19,20 @@ const AppState = struct {
     center_y: c_int,
     field_shift: c_int,
     field_size: c_int,
+    mouse_input: ?MouseInput,
 };
 
 var app: AppState = .{
     .field_size = 20,
     .board_size = 3,
     .rects = undefined,
-    .game = undefined,
+    .logic = undefined,
     .window = undefined,
     .renderer = undefined,
     .center_x = 0,
     .center_y = 0,
     .field_shift = 5,
+    .mouse_input = null,
 };
 
 pub fn main() !void {
@@ -39,10 +46,10 @@ pub fn main() !void {
 
     const mines = 1;
 
-    var state = try State.init(allocator, app.board_size, mines);
+    var state = try Logic.init(allocator, app.board_size, mines);
     defer state.deinit(allocator);
 
-    app.game = &state;
+    app.logic = &state;
 
     var window_width: usize = 800;
     var window_height: usize = 400;
@@ -74,11 +81,13 @@ pub fn main() !void {
     app.center_y = @intCast(window_height / 2);
 
     const clicked = 4;
-    _ = app.game.visitField(clicked);
+    _ = try app.logic.visitField(clicked);
 
     updateRects();
 
     main_loop: while (true) {
+        app.mouse_input = null;
+
         while (c.SDL_PollEvent(&sdl_event) != 0) {
             switch (sdl_event.type) {
                 c.SDL_QUIT => break :main_loop,
@@ -87,7 +96,14 @@ pub fn main() !void {
                         break :main_loop;
                     }
                 },
-                else => {},
+                c.SDL_MOUSEBUTTONDOWN => {
+                    app.mouse_input = .{
+                        .x = sdl_event.button.x,
+                        .y = sdl_event.button.y,
+                    };
+                },
+                else => {
+                },
             }
             switch (sdl_event.window.event) {
                 c.SDL_WINDOWEVENT_RESIZED => {
@@ -108,6 +124,18 @@ pub fn main() !void {
     }
 }
 
+fn isClickedOnField(idx: usize) bool {
+    if (app.mouse_input == null) {
+        return false;
+    }
+
+    if (app.mouse_input.?.x >= app.rects.*[idx].x and app.mouse_input.?.x <= app.rects.*[idx].x + app.rects.*[idx].w and app.mouse_input.?.y >= app.rects.*[idx].y and app.mouse_input.?.y <= app.rects.*[idx].y + app.rects.*[idx].h) {
+        return true;
+    }
+
+    return false;
+}
+
 fn updateRects() void {
     var r: u8 = 255;
     var g: u8 = 255;
@@ -123,6 +151,12 @@ fn updateRects() void {
         app.rects.*[i].h = app.field_size;
         app.rects.*[i].w = app.field_size;
 
+        if (isClickedOnField(i)) {
+            if (try app.logic.visitField(i)) |visit| {
+                std.log.info("visited field={d}: {any}", .{ i, visit });
+            }
+        }
+
         if (i == 0) {
             app.rects.*[i].x = app.center_x - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
             app.rects.*[i].y = app.center_y - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
@@ -132,6 +166,18 @@ fn updateRects() void {
         } else {
             app.rects.*[i].x = app.rects.*[i - 1].x + app.field_shift + app.field_size;
             app.rects.*[i].y = app.rects.*[i - 1].y;
+        }
+
+        const is_revealed = for (0..app.logic.revealed_ids.items.len) |id| {
+            if (app.logic.revealed_ids.items[id] == i) {
+                break true;
+            }
+        } else false;
+
+        if (is_revealed) {
+            _ = c.SDL_SetRenderDrawColor(app.renderer, 0, 255, 0, 255);
+        } else {
+            _ = c.SDL_SetRenderDrawColor(app.renderer, 255, 0, 0, 255);
         }
 
         _ = c.SDL_RenderFillRect(app.renderer, &app.rects.*[i]);
