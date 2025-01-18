@@ -1,13 +1,10 @@
 const std = @import("std");
 const Logic = @import("logic/state.zig").Logic;
 const c = @cImport({
-    @cInclude("SDL.h");
+    @cInclude("SDL2/SDL.h");
 });
 
-const MouseInput = struct {
-    x: c_int,
-    y: c_int
-};
+const MouseInput = struct { x: c_int, y: c_int };
 
 const AppState = struct {
     logic: *Logic,
@@ -102,8 +99,7 @@ pub fn main() !void {
                         .y = sdl_event.button.y,
                     };
                 },
-                else => {
-                },
+                else => {},
             }
             switch (sdl_event.window.event) {
                 c.SDL_WINDOWEVENT_RESIZED => {

@@ -22,7 +22,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.linkSystemLibrary("sdl2");
+    exe.linkSystemLibrary("SDL2");
     exe.linkLibC();
 
     b.installArtifact(exe);
