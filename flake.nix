@@ -12,7 +12,7 @@
       devShells.x86_64-linux.zig = pkgs.mkShell {
         packages = with pkgs; [
           zig
-          SDL2
+          sdl3
         ];
       };
     };

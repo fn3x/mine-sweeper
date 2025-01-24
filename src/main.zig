@@ -1,7 +1,7 @@
 const std = @import("std");
 const Logic = @import("logic/state.zig").Logic;
 const c = @cImport({
-    @cInclude("SDL2/SDL.h");
+    @cInclude("SDL3/SDL.h");
 });
 
 const MouseInput = struct { x: c_int, y: c_int };
@@ -9,7 +9,7 @@ const MouseInput = struct { x: c_int, y: c_int };
 const AppState = struct {
     logic: *Logic,
     board_size: usize,
-    rects: *[]c.SDL_Rect,
+    rects: []c.SDL_Rect,
     renderer: *c.SDL_Renderer,
     window: *c.SDL_Window,
     center_x: c_int,
@@ -33,7 +33,7 @@ var app: AppState = .{
 };
 
 pub fn main() !void {
-    if (c.SDL_Init(c.SDL_INIT_VIDEO) != 0) {
+    if (!c.SDL_Init(c.SDL_INIT_VIDEO)) {
         std.debug.panic("SDL error: {s}", .{c.SDL_GetError()});
     }
 
@@ -51,14 +51,14 @@ pub fn main() !void {
     var window_width: usize = 800;
     var window_height: usize = 400;
 
-    const window = c.SDL_CreateWindow("Simple", 0, 0, @intCast(window_width), @intCast(window_height), 0);
+    const window = c.SDL_CreateWindow("Mine Sweeper", @intCast(window_width), @intCast(window_height), 0);
     if (window == null) {
         std.debug.panic("SDL error: {s}", .{c.SDL_GetError()});
     }
     defer c.SDL_DestroyWindow(window);
     app.window = window.?;
 
-    const renderer = c.SDL_CreateRenderer(window, 0, c.SDL_RENDERER_PRESENTVSYNC);
+    const renderer = c.SDL_CreateRenderer(window, c.SDL_GPU_PRESENTMODE_VSYNC);
     if (renderer == null) {
         std.debug.panic("SDL error: {s}", .{c.SDL_GetError()});
     }
@@ -67,9 +67,9 @@ pub fn main() !void {
 
     var sdl_event: c.SDL_Event = undefined;
 
-    var rects = try allocator.alloc(c.SDL_Rect, app.board_size * app.board_size);
+    const rects = try allocator.alloc(c.SDL_Rect, app.board_size * app.board_size);
     defer allocator.free(rects);
-    app.rects = &rects;
+    app.rects = rects;
 
     app.field_size = @intCast(20);
     app.field_shift = @intCast(5);
@@ -77,33 +77,28 @@ pub fn main() !void {
     app.center_x = @intCast(window_width / 2);
     app.center_y = @intCast(window_height / 2);
 
-    const clicked = 4;
-    _ = try app.logic.visitField(clicked);
-
-    updateRects();
-
     main_loop: while (true) {
         app.mouse_input = null;
 
-        while (c.SDL_PollEvent(&sdl_event) != 0) {
+        while (c.SDL_PollEvent(&sdl_event)) {
             switch (sdl_event.type) {
-                c.SDL_QUIT => break :main_loop,
-                c.SDL_KEYDOWN => {
-                    if (sdl_event.key.keysym.sym == c.SDLK_ESCAPE) {
+                c.SDL_EVENT_QUIT => break :main_loop,
+                c.SDL_EVENT_KEY_DOWN => {
+                    if (sdl_event.key.key == c.SDLK_ESCAPE) {
                         break :main_loop;
                     }
                 },
-                c.SDL_MOUSEBUTTONDOWN => {
+                c.SDL_EVENT_MOUSE_BUTTON_DOWN => {
                     app.mouse_input = .{
-                        .x = sdl_event.button.x,
-                        .y = sdl_event.button.y,
+                        .x = @intFromFloat(sdl_event.button.x),
+                        .y = @intFromFloat(sdl_event.button.y),
                     };
                 },
                 else => {},
             }
-            switch (sdl_event.window.event) {
-                c.SDL_WINDOWEVENT_RESIZED => {
-                    c.SDL_GetWindowSize(window, @as([*]c_int, @ptrCast(&window_width)), @as([*]c_int, @ptrCast(&window_height)));
+            switch (sdl_event.window.type) {
+                c.SDL_EVENT_WINDOW_RESIZED => {
+                    _ = c.SDL_GetWindowSize(window, @as([*]c_int, @ptrCast(&window_width)), @as([*]c_int, @ptrCast(&window_height)));
                     app.center_x = @intCast(window_width / 2);
                     app.center_y = @intCast(window_height / 2);
                 },
@@ -111,12 +106,13 @@ pub fn main() !void {
             }
         }
 
-        _ = c.SDL_SetRenderDrawColor(app.renderer, 255, 255, 255, 255);
+        _ = c.SDL_SetRenderDrawColor(app.renderer, 0xff, 0xff, 0xff, 0xff);
         _ = c.SDL_RenderClear(app.renderer);
 
         updateRects();
 
-        c.SDL_RenderPresent(app.renderer);
+        _ = c.SDL_SetRenderScale(app.renderer, 1.0, 1.0);
+        _ = c.SDL_RenderPresent(app.renderer);
     }
 }
 
@@ -125,7 +121,7 @@ fn isClickedOnField(idx: usize) bool {
         return false;
     }
 
-    if (app.mouse_input.?.x >= app.rects.*[idx].x and app.mouse_input.?.x <= app.rects.*[idx].x + app.rects.*[idx].w and app.mouse_input.?.y >= app.rects.*[idx].y and app.mouse_input.?.y <= app.rects.*[idx].y + app.rects.*[idx].h) {
+    if (app.mouse_input.?.x >= app.rects[idx].x and app.mouse_input.?.x <= app.rects[idx].x + app.rects[idx].w and app.mouse_input.?.y >= app.rects[idx].y and app.mouse_input.?.y <= app.rects[idx].y + app.rects[idx].h) {
         return true;
     }
 
@@ -133,10 +129,10 @@ fn isClickedOnField(idx: usize) bool {
 }
 
 fn updateRects() void {
-    var r: u8 = 255;
-    var g: u8 = 255;
-    var b: u8 = 255;
-    var a: u8 = 255;
+    var r: u8 = undefined;
+    var g: u8 = undefined;
+    var b: u8 = undefined;
+    var a: u8 = undefined;
 
     // save previous draw color
     _ = c.SDL_GetRenderDrawColor(app.renderer, &r, &g, &b, &a);
@@ -144,8 +140,8 @@ fn updateRects() void {
     _ = c.SDL_SetRenderDrawColor(app.renderer, 0xff, 0, 0, 0xff);
 
     for (0..app.rects.len) |i| {
-        app.rects.*[i].h = app.field_size;
-        app.rects.*[i].w = app.field_size;
+        app.rects[i].h = app.field_size;
+        app.rects[i].w = app.field_size;
 
         if (isClickedOnField(i)) {
             if (try app.logic.visitField(i)) |visit| {
@@ -154,14 +150,14 @@ fn updateRects() void {
         }
 
         if (i == 0) {
-            app.rects.*[i].x = app.center_x - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
-            app.rects.*[i].y = app.center_y - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
+            app.rects[i].x = app.center_x - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
+            app.rects[i].y = app.center_y - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
         } else if (i % app.board_size == 0) {
-            app.rects.*[i].x = app.rects.*[i - app.board_size].x;
-            app.rects.*[i].y = app.rects.*[i - 1].y + app.field_shift + app.field_size;
+            app.rects[i].x = app.rects[i - app.board_size].x;
+            app.rects[i].y = app.rects[i - 1].y + app.field_shift + app.field_size;
         } else {
-            app.rects.*[i].x = app.rects.*[i - 1].x + app.field_shift + app.field_size;
-            app.rects.*[i].y = app.rects.*[i - 1].y;
+            app.rects[i].x = app.rects[i - 1].x + app.field_shift + app.field_size;
+            app.rects[i].y = app.rects[i - 1].y;
         }
 
         const is_revealed = for (0..app.logic.revealed_ids.items.len) |id| {
@@ -171,12 +167,12 @@ fn updateRects() void {
         } else false;
 
         if (is_revealed) {
-            _ = c.SDL_SetRenderDrawColor(app.renderer, 0, 255, 0, 255);
+            _ = c.SDL_SetRenderDrawColor(app.renderer, 0, 0xff, 0, 0xff);
         } else {
-            _ = c.SDL_SetRenderDrawColor(app.renderer, 255, 0, 0, 255);
+            _ = c.SDL_SetRenderDrawColor(app.renderer, 0xff, 0, 0, 0xff);
         }
 
-        _ = c.SDL_RenderFillRect(app.renderer, &app.rects.*[i]);
+        _ = c.SDL_RenderRect(app.renderer, @ptrCast(&app.rects[i]));
     }
 
     // set draw color back
