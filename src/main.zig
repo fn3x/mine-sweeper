@@ -144,8 +144,11 @@ fn updateRects() void {
         app.rects[i].w = app.field_size;
 
         if (isClickedOnField(i)) {
-            if (try app.logic.visitField(i)) |visit| {
-                std.log.info("visited field={d}: {any}", .{ i, visit });
+            _ = try app.logic.visitField(i);
+
+            if (app.logic.state == .Result) {
+                app.logic.reset();
+                _ = c.SDL_SetRenderDrawColor(app.renderer, r, g, b, a);
             }
         }
 
@@ -168,6 +171,8 @@ fn updateRects() void {
 
         if (is_revealed) {
             _ = c.SDL_SetRenderDrawColor(app.renderer, 0, 0xff, 0, 0xff);
+        } else if (app.logic.all_fields[i].is_mine) {
+            _ = c.SDL_SetRenderDrawColor(app.renderer, 0, 0, 0xff, 0xff);
         } else {
             _ = c.SDL_SetRenderDrawColor(app.renderer, 0xff, 0, 0, 0xff);
         }
@@ -178,3 +183,5 @@ fn updateRects() void {
     // set draw color back
     _ = c.SDL_SetRenderDrawColor(app.renderer, r, g, b, a);
 }
+
+fn resetRects() void {}

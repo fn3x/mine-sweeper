@@ -76,6 +76,7 @@ pub const Logic = struct {
         self.placed_mines = 0;
         self.state = .Init;
         self.result = .NoResult;
+        self.turn = 0;
         self.revealed_ids.clearRetainingCapacity();
     }
 
