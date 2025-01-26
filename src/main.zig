@@ -4,31 +4,31 @@ const c = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
-const MouseInput = struct { x: c_int, y: c_int };
+const MouseInput = struct { x: f32, y: f32 };
 
 const AppState = struct {
     logic: *Logic,
     board_size: usize,
-    rects: []c.SDL_Rect,
+    rects: []c.SDL_FRect,
     renderer: *c.SDL_Renderer,
     window: *c.SDL_Window,
-    center_x: c_int,
-    center_y: c_int,
-    field_shift: c_int,
-    field_size: c_int,
+    center_x: f32,
+    center_y: f32,
+    field_shift: f32,
+    field_size: f32,
     mouse_input: ?MouseInput,
 };
 
 var app: AppState = .{
-    .field_size = 20,
-    .board_size = 3,
+    .field_size = 20.0,
+    .board_size = 3.0,
     .rects = undefined,
     .logic = undefined,
     .window = undefined,
     .renderer = undefined,
-    .center_x = 0,
-    .center_y = 0,
-    .field_shift = 5,
+    .center_x = 0.0,
+    .center_y = 0.0,
+    .field_shift = 5.0,
     .mouse_input = null,
 };
 
@@ -67,15 +67,15 @@ pub fn main() !void {
 
     var sdl_event: c.SDL_Event = undefined;
 
-    const rects = try allocator.alloc(c.SDL_Rect, app.board_size * app.board_size);
+    const rects = try allocator.alloc(c.SDL_FRect, app.board_size * app.board_size);
     defer allocator.free(rects);
     app.rects = rects;
 
-    app.field_size = @intCast(20);
-    app.field_shift = @intCast(5);
+    app.field_size = 20.0;
+    app.field_shift = 5.0;
 
-    app.center_x = @intCast(window_width / 2);
-    app.center_y = @intCast(window_height / 2);
+    app.center_x = @floatFromInt(window_width / 2);
+    app.center_y = @floatFromInt(window_height / 2);
 
     main_loop: while (true) {
         app.mouse_input = null;
@@ -90,8 +90,8 @@ pub fn main() !void {
                 },
                 c.SDL_EVENT_MOUSE_BUTTON_DOWN => {
                     app.mouse_input = .{
-                        .x = @intFromFloat(sdl_event.button.x),
-                        .y = @intFromFloat(sdl_event.button.y),
+                        .x = sdl_event.button.x,
+                        .y = sdl_event.button.y,
                     };
                 },
                 else => {},
@@ -99,8 +99,8 @@ pub fn main() !void {
             switch (sdl_event.window.type) {
                 c.SDL_EVENT_WINDOW_RESIZED => {
                     _ = c.SDL_GetWindowSize(window, @as([*]c_int, @ptrCast(&window_width)), @as([*]c_int, @ptrCast(&window_height)));
-                    app.center_x = @intCast(window_width / 2);
-                    app.center_y = @intCast(window_height / 2);
+                    app.center_x = @floatFromInt(window_width / 2);
+                    app.center_y = @floatFromInt(window_height / 2);
                 },
                 else => {},
             }
@@ -150,8 +150,8 @@ fn updateRects() void {
         }
 
         if (i == 0) {
-            app.rects[i].x = app.center_x - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
-            app.rects[i].y = app.center_y - app.field_shift - app.field_size - @divFloor(app.field_size, 2);
+            app.rects[i].x = app.center_x - app.field_shift - app.field_size - (app.field_size / 2);
+            app.rects[i].y = app.center_y - app.field_shift - app.field_size - (app.field_size / 2);
         } else if (i % app.board_size == 0) {
             app.rects[i].x = app.rects[i - app.board_size].x;
             app.rects[i].y = app.rects[i - 1].y + app.field_shift + app.field_size;
